@@ -16,7 +16,6 @@ jobs:
       - name: Set version from tag
         id: version
         run: |
-          # github.ref_name будет типа "v1.2.3", убираем "v"
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
@@ -39,13 +38,16 @@ jobs:
           sed -i "s/sha256sums=('SKIP')/sha256sums=('${SHA}')/" aur/PKGBUILD
 
       - name: Regenerate .SRCINFO
-        uses: docker://archlinux:latest
-        with:
-          args: >
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/aur:/aur" \
+            archlinux:latest \
             bash -c "
-              pacman -Sy --noconfirm pacman-contrib &&
-              cd /github/workspace/aur &&
-              makepkg --printsrcinfo > .SRCINFO
+              pacman -Sy --noconfirm pacman-contrib sudo &&
+              useradd -m builder &&
+              cp -r /aur /tmp/aur &&
+              chown -R builder:builder /tmp/aur &&
+              sudo -u builder bash -c 'cd /tmp/aur && makepkg --printsrcinfo' > /aur/.SRCINFO
             "
 
       - name: Publish to AUR
